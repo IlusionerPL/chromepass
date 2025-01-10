@@ -22,11 +22,23 @@ foreach ($Browser in $Paths.Keys) {
     }
 }
 
-# Kompresja danych do ZIP
+# Funkcja tworzenia archiwum ZIP za pomocą System.IO.Compression
+function Create-ZipFile {
+    param (
+        [string]$SourcePath,
+        [string]$DestinationPath
+    )
+
+    Add-Type -AssemblyName "System.IO.Compression.FileSystem"
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($SourcePath, $DestinationPath)
+}
+
+# Tworzenie ZIP z użyciem nowej funkcji
 $ZipPath = Join-Path $env:TEMP "BrowserData.zip"
 if (Test-Path $ZipPath) { Remove-Item -Path $ZipPath -Force }
+
 try {
-    Compress-Archive -Path $TempFolder -DestinationPath $ZipPath -Force
+    Create-ZipFile -SourcePath $TempFolder -DestinationPath $ZipPath
 } catch {
     Write-Host "Błąd podczas kompresji plików: $_"
     Exit 1
